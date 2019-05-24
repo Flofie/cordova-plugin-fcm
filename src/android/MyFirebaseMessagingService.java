@@ -14,6 +14,7 @@ import java.util.HashMap;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
+import utils.CCNotificationHelper;
 /**
  * Created by Felipe Echanique on 08/06/2016.
  */
@@ -34,7 +35,12 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         // Also if you intend on generating your own notifications as a result of a received FCM
         // message, here is where that should be initiated. See sendNotification method below.
         Log.d(TAG, "==> MyFirebaseMessagingService onMessageReceived");
-		
+
+		boolean isCloseWindowEnabled = false
+        CCNotificationHelper.processCCNotificationData(this, remoteMessage, isCloseWindowEnabled,
+                android.support.v4.R.drawable.notification_action_background,
+                android.support.v4.R.drawable.notification_action_background);
+
 		if( remoteMessage.getNotification() != null){
 			Log.d(TAG, "\tNotification Title: " + remoteMessage.getNotification().getTitle());
 			Log.d(TAG, "\tNotification Message: " + remoteMessage.getNotification().getBody());
