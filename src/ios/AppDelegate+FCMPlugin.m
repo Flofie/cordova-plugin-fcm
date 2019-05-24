@@ -9,15 +9,16 @@
 #import "FCMPlugin.h"
 #import <objc/runtime.h>
 #import <Foundation/Foundation.h>
-
+#import <FirebaseMessaging/FirebaseMessaging.h>
 #import "Firebase.h"
+#import <cometchat-ui/readyUIFIle.h>
 
 #if defined(__IPHONE_10_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_10_0
 @import UserNotifications;
 #endif
 
 @import FirebaseInstanceID;
-@import FirebaseMessaging;
+
 
 // Implement UNUserNotificationCenterDelegate to receive display notification via APNS for devices
 // running iOS 10 and above. Implement FIRMessagingDelegate to receive data message via FCM for
@@ -36,6 +37,7 @@
 
 static NSData *lastPush;
 NSString *const kGCMMessageIDKey = @"gcm.message_id";
+readyUIFIle *readyUI;
 
 //Method swizzling
 + (void)load
@@ -48,7 +50,7 @@ NSString *const kGCMMessageIDKey = @"gcm.message_id";
 - (BOOL)application:(UIApplication *)application customDidFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 
     [self application:application customDidFinishLaunchingWithOptions:launchOptions];
-
+    readyUI = [[readyUIFIle alloc]init];
     NSLog(@"DidFinishLaunchingWithOptions");
  
     
@@ -86,7 +88,7 @@ NSString *const kGCMMessageIDKey = @"gcm.message_id";
             // For iOS 10 display notification (sent via APNS)
             [UNUserNotificationCenter currentNotificationCenter].delegate = self;
             // For iOS 10 data message (sent via FCM)
-            [FIRMessaging messaging].remoteMessageDelegate = self;
+            [FIRMessaging messaging].delegate = self;
 #endif
         }
         
@@ -138,6 +140,24 @@ NSString *const kGCMMessageIDKey = @"gcm.message_id";
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
 didReceiveNotificationResponse:(UNNotificationResponse *)response
          withCompletionHandler:(void (^)())completionHandler {
+    NSLog(@"herhhehe %@",response.notification.request.content.userInfo);
+    
+    UIApplicationState state = [[UIApplication sharedApplication] applicationState];
+    if (state == UIApplicationStateBackground || state == UIApplicationStateInactive) {
+        NSString *metadata = [response.notification.request.content.userInfo objectForKey:@"m"];
+        
+        NSData *data = [metadata dataUsingEncoding:NSUTF8StringEncoding];
+        NSDictionary *jsonData = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        NSString *type= [response.notification.request.content.userInfo objectForKey:@"t"];
+        if ([type isEqualToString:@"O"]) {
+            NSDictionary *userInfo1 = @{@"pushNotifData":jsonData,@"TAG":@"0"};
+            [readyUI launchCometChatThroughPushNotification:userInfo1];
+        }
+        else if([type isEqualToString:@"C"]){
+            NSDictionary *userInfo2 = @{@"pushNotifData":jsonData,@"TAG":@"1"};
+            [readyUI launchCometChatThroughPushNotification:userInfo2];
+        }
+    }
     NSDictionary *userInfo = response.notification.request.content.userInfo;
     if (userInfo[kGCMMessageIDKey]) {
         NSLog(@"Message ID 2: %@", userInfo[kGCMMessageIDKey]);
@@ -172,25 +192,23 @@ didReceiveNotificationResponse:(UNNotificationResponse *)response
 
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo
 {
-    // Short-circuit when actually running iOS 10+, let notification centre methods handle the notification.
-    if (NSFoundationVersionNumber >= NSFoundationVersionNumber_iOS_9_x_Max) {
-        return;
-    }
-
-    NSLog(@"Message ID: %@", userInfo[@"gcm.message_id"]);
     
-    NSError *error;
-    NSDictionary *userInfoMutable = [userInfo mutableCopy];
     
-    if (application.applicationState != UIApplicationStateActive) {
-        NSLog(@"New method with push callback: %@", userInfo);
+    UIApplicationState state = [[UIApplication sharedApplication] applicationState];
+    if (state == UIApplicationStateBackground || state == UIApplicationStateInactive) {
+        NSString *metadata = [userInfo objectForKey:@"m"];
         
-        [userInfoMutable setValue:@(YES) forKey:@"wasTapped"];
-        NSData *jsonData = [NSJSONSerialization dataWithJSONObject:userInfoMutable
-                                                           options:0
-                                                             error:&error];
-        NSLog(@"APP WAS CLOSED DURING PUSH RECEPTION Saved data: %@", jsonData);
-        lastPush = jsonData;
+        NSData *data = [metadata dataUsingEncoding:NSUTF8StringEncoding];
+        NSDictionary *jsonData = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        NSString *type= [userInfo objectForKey:@"t"];
+        if ([type isEqualToString:@"O"]) {
+            NSDictionary *userInfo1 = @{@"pushNotifData":jsonData,@"TAG":@"0"};
+            [readyUI launchCometChatThroughPushNotification:userInfo1];
+        }
+        else if([type isEqualToString:@"C"]){
+            NSDictionary *userInfo2 = @{@"pushNotifData":jsonData,@"TAG":@"1"};
+            [readyUI launchCometChatThroughPushNotification:userInfo2];
+        }
     }
 }
 // [END receive_message in background] iOS < 10]
@@ -292,7 +310,6 @@ fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler
 - (void)applicationDidEnterBackground:(UIApplication *)application
 {
     NSLog(@"app entered background");
-    [[FIRMessaging messaging] disconnect];
     [FCMPlugin.fcmPlugin appEnterBackground];
     NSLog(@"Disconnected from FCM");
 }
